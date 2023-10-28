@@ -1,0 +1,166 @@
+const joinedAt2 = require("../models/streamerJoinedAt");
+const joinedAt3 = require("../models/cameraJoinedAt");
+const streamerUser = require("../models/streamerUser");
+const cameraUser = require("../models/cameraUser");
+const streamerUserChannel = require("../models/streamerUserChannel");
+const Stat = require("../models/stats");
+const cameraUserChannel = require("../models/cameraUserChannel");
+let moment = require("moment");
+const { Client, Collection, GatewayIntentBits, EmbedBuilder,Partials, InteractionType } = require("discord.js");
+
+const sunucuayar = require("../models/sunucuayar")
+/**
+ * @param { Client } ready
+ */ 
+const { joinVoiceChannel } = require("@discordjs/voice");
+module.exports = async (oldState, newState) => {
+  if (!oldState.selfVideo && newState.selfVideo) await joinedAt3.findOneAndUpdate({ userID: newState.id }, { $set: { date: Date.now() } }, { upsert: true });
+let joinedAtData3 = await joinedAt3.findOne({ userID: oldState.id });
+if (!joinedAtData3) await joinedAt3.findOneAndUpdate({ userID: oldState.id }, { $set: { date: Date.now() } }, { upsert: true });
+joinedAtData3 = await joinedAt3.findOne({ userID: oldState.id });
+const data3 = Date.now() - joinedAtData3.date;
+
+  if (oldState.selfVideo && !newState.selfVideo) {
+    await saveDatas3(oldState, oldState.channel, data3);
+    await joinedAt3.deleteOne({ userID: oldState.id });
+  } else if (oldState.selfVideo && newState.selfVideo) {
+    await saveDatas3(oldState, oldState.channel, data3);
+    await joinedAt3.updateOne({ userID: oldState.id }, { $set: { date: Date.now() } }, { upsert: true });
+  }
+  if (oldState.channelId && !oldState.streaming && newState.channelId && newState.streaming) await joinedAt2.findOneAndUpdate({ userID: newState.id }, { $set: { date: Date.now() } }, { upsert: true });
+  let joinedAtData2 = await joinedAt2.findOne({ userID: oldState.id });
+  if (!joinedAtData2) await joinedAt2.findOneAndUpdate({ userID: oldState.id }, { $set: { date: Date.now() } }, { upsert: true });
+  joinedAtData2 = await joinedAt2.findOne({ userID: oldState.id });
+  const data2 = Date.now() - joinedAtData2.date;
+  
+    if (oldState.streaming && !newState.streaming) {
+      await saveDatas2(oldState, oldState.channel, data2);
+      Stat.updateOne({
+        userID: oldState.id,
+        guildID: client.ayarlar.sunucuId
+      }, {
+        $inc: {
+          totalstreamer: data2,
+          totalstreamernumber: 1
+        }
+      }, {
+        upsert: true
+      }).exec();
+      await joinedAt2.deleteOne({ userID: oldState.id });
+    } else if (oldState.channelId && oldState.streaming && newState.channelId && newState.streaming) {
+      await saveDatas2(oldState, oldState.channel, data2);
+      Stat.updateOne({
+        userID: oldState.id,
+        guildID: client.ayarlar.sunucuId
+      }, {
+        $inc: {
+          totalstreamer: data2,
+          totalstreamernumber: 1
+
+        }
+      }, {
+        upsert: true
+      }).exec();
+      await joinedAt2.updateOne({ userID: oldState.id }, { $set: { date: Date.now() } }, { upsert: true });
+    }
+    
+  const streamChannel = client.channels.cache.find(x => x.name == "streamer-cam-log");
+  if (!streamChannel) return;
+  const cameraChannel = client.channels.cache.find(x => x.name == "streamer-cam-log");
+  if (!cameraChannel) return;
+  const cameraChannel2 = client.channels.cache.find(x => x.name == "streamer-cam-log-basic");
+  if (!cameraChannel2) return;
+
+  if (oldState.channel && !oldState.streaming && newState.channel && newState.streaming) {
+  const newchannelmember = newState.channel.members.map((x) => `<@${x.user.id}>`).splice(0, 20).join(", ");
+  
+  streamChannel.send({ embeds: [new EmbedBuilder().setAuthor({ name: client.guilds.cache.get(client.ayarlar.sunucuId).name, iconURL: client.guilds.cache.get(client.ayarlar.sunucuId).iconURL({dynamic:true})}).setThumbnail(newState.member.displayAvatarURL({ dynamic: true, size: 2048 })) 
+  .setDescription(`
+   ${oldState.member} isimli kullanıcı bir sesli kanalda yayın açtı.
+  
+  \` ➥ \` Ses Kanalı: <#${oldState.channel.id}>
+  \` ➥ \` Yayına Başlama Zamanı: <t:${Math.floor(Date.now() / 1000)}:R>
+  
+  \`\`\`fix\n-Kanalında bulunan üyeler şunlardır;\n\`\`\`
+  ${newchannelmember}`)]});
+  cameraChannel2.send(`:desktop: ${oldState.member.user.tag} (\`${oldState.member.id}\`) adlı üye <#${oldState.channel.id}> kanalında yayın başlattı. `)
+
+} else if (oldState.channel && oldState.streaming && newState.channel && !newState.streaming) {
+  const newchannelmember = newState.channel.members.map((x) => `<@${x.user.id}>`).splice(0, 20).join(", ");
+
+  streamChannel.send({ embeds: [new EmbedBuilder().setAuthor({ name: client.guilds.cache.get(client.ayarlar.sunucuId).name, iconURL: client.guilds.cache.get(client.ayarlar.sunucuId).iconURL({dynamic:true})}).setThumbnail(newState.member.displayAvatarURL({ dynamic: true, size: 2048 })) 
+  .setDescription(`
+   ${oldState.member} isimli kullanıcı bir sesli kanalda yayınını kapattı.
+    
+  \` ➥ \` Ses Kanalı: <#${oldState.channel.id}>
+  \` ➥ \` Yayın Süresi: \` ${moment.duration(data2 ? data2 : 0).format("H [saat], m [dakika], s [saniye]")} \`
+    
+  \`\`\`fix\n-Kanalında bulunan üyeler şunlardır;\n\`\`\`
+  ${newchannelmember}`)]});
+  cameraChannel2.send(`:video_camera: ${oldState.member.user.tag} (\`${oldState.member.id}\`) adlı üye <#${oldState.channel.id}> açtığı yayını kapattı. `)
+
+  } else if (oldState.channel && !oldState.selfVideo && newState.channel && newState.selfVideo) {
+  const newchannelmember = newState.channel.members.map((x) => `<@${x.user.id}>`).splice(0, 20).join(", ");
+  cameraChannel2.send(`:video_camera: ${oldState.member.user.tag} (\`${oldState.member.id}\`) adlı üye <#${oldState.channel.id}> kanalında kamerasını açtı. `)
+
+  cameraChannel.send({ embeds: [new EmbedBuilder().setAuthor({ name: client.guilds.cache.get(client.ayarlar.sunucuId).name, iconURL: client.guilds.cache.get(client.ayarlar.sunucuId).iconURL({dynamic:true})}).setThumbnail(newState.member.displayAvatarURL({ dynamic: true, size: 2048 })) 
+  .setDescription(`
+   ${oldState.member} isimli kullanıcı bir sesli kanalda kamera açtı.
+    
+  \` ➥ \` Ses Kanalı: <#${oldState.channel.id}>
+  \` ➥ \` Kamera Açma Zamanı: <t:${Math.floor(Date.now() / 1000)}:R>
+    
+  \`\`\`fix\n-Kanalında bulunan üyeler şunlardır;\n\`\`\`
+  ${newchannelmember}`)]});
+  } else if (oldState.channel && oldState.selfVideo && newState.channel && !newState.selfVideo) {
+  const newchannelmember = newState.channel.members.map((x) => `<@${x.user.id}>`).splice(0, 20).join(", ");
+  cameraChannel2.send(`:video_camera: ${oldState.member.user.tag} (\`${oldState.member.id}\`) adlı üye <#${oldState.channel.id}> kamerasını kapattı `)
+  
+  cameraChannel.send({ embeds: [new EmbedBuilder().setAuthor({ name: client.guilds.cache.get(client.ayarlar.sunucuId).name, iconURL: client.guilds.cache.get(client.ayarlar.sunucuId).iconURL({dynamic:true})}).setThumbnail(newState.member.displayAvatarURL({ dynamic: true, size: 2048 })) 
+  .setDescription(`
+   ${oldState.member} isimli kullanıcı bir sesli kanalda kamerasını kapattı.
+      
+  \` ➥ \` Ses Kanalı: <#${oldState.channel.id}>
+  \` ➥ \` Kamera Süresi: \` ${moment.duration(data3 ? data3 : 0).format("H [saat], m [dakika], s [saniye]")} \`
+      
+  \`\`\`fix\n-Kanalında bulunan üyeler şunlardır;\n\`\`\`
+  ${newchannelmember}`)]});
+  } 
+  if (oldState.channel && !newState.channel && oldState.streaming) {
+    cameraChannel2.send(`:desktop: ${oldState.member.user.tag} (\`${oldState.member.id}\`) adlı üye <#${oldState.channel.id}> açtığı yayını kapattı. `)
+  const oldchannelmember = oldState.channel.members.map((x) => `<@${x.user.id}>`).splice(0, 20).join(", ");
+  streamChannel.send({ embeds: [new EmbedBuilder().setAuthor({ name: client.guilds.cache.get(client.ayarlar.sunucuId).name, iconURL: client.guilds.cache.get(client.ayarlar.sunucuId).iconURL({dynamic:true})}).setThumbnail(newState.member.displayAvatarURL({ dynamic: true, size: 2048 })) 
+  .setDescription(`
+   ${oldState.member} isimli kullanıcı bir sesli kanalda yayınını kapattı.
+        
+  \` ➥ \` Ses Kanalı: <#${oldState.channel.id}>
+  \` ➥ \` Yayın Süresi: \` ${moment.duration(data2 ? data2 : 0).format("H [saat], m [dakika], s [saniye]")} \`
+        
+  \`\`\`fix\n-Kanalında bulunan üyeler şunlardır;\n\`\`\`
+  ${oldchannelmember}`)]});
+  }
+  if (oldState.channel && !newState.channel && oldState.selfVideo) {
+  const oldchannelmember = oldState.channel.members.map((x) => `<@${x.user.id}>`).splice(0, 20).join(", ");
+  cameraChannel2.send(`:video_camera: ${oldState.member.user.tag} (\`${oldState.member.id}\`) adlı üye <#${oldState.channel.id}> kanalında kamerasını kapattı. `)
+
+  cameraChannel.send({ embeds: [new EmbedBuilder().setAuthor({ name: client.guilds.cache.get(client.ayarlar.sunucuId).name, iconURL: client.guilds.cache.get(client.ayarlar.sunucuId).iconURL({dynamic:true})}).setThumbnail(newState.member.displayAvatarURL({ dynamic: true, size: 2048 })) 
+  .setDescription(`
+   ${oldState.member} isimli kullanıcı bir sesli kanalda kamerasını kapattı.
+        
+  \` ➥ \` Ses Kanalı: <#${oldState.channel.id}>
+  \` ➥ \` Kamera Süresi: \` ${moment.duration(data3 ? data3 : 0).format("H [saat], m [dakika], s [saniye]")} \`
+        
+  \`\`\`fix\n-Kanalında bulunan üyeler şunlardır;\n\`\`\`
+  ${oldchannelmember}`)]});
+  }
+  //////////////
+  };
+  async function saveDatas2(user, channel, data2) {
+    await streamerUser.findOneAndUpdate({ guildID: client.ayarlar.sunucuId, userID: user.id }, { $inc: { topStat: data2  } }, { upsert: true });
+    await streamerUserChannel.findOneAndUpdate({ guildID: client.ayarlar.sunucuId, userID: user.id,  }, { $inc: { channelData: data2 } }, { upsert: true });
+  }
+  async function saveDatas3(user, channel, data3) {
+    await cameraUser.findOneAndUpdate({ guildID: client.ayarlar.sunucuId, userID: user.id }, { $inc: { topStat: data3 } }, { upsert: true });
+    await cameraUserChannel.findOneAndUpdate({ guildID: client.ayarlar.sunucuId, userID: user.id }, { $inc: { channelData: data3 } }, { upsert: true });
+  
+};
